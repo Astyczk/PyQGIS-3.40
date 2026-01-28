@@ -44,3 +44,11 @@ DLL 注入: 必须使用 os.add_dll_directory 注入 bin、apps\qgis-ltr\bin 和
 强化记忆：明确提到 RTX 4060，会让 Gem 在写复杂的地形分析脚本时，更倾向于使用节省显存的写法（如直接写盘而不是暂存内存）。
 
 自动修复：它解释了为什么需要 sys.path 补丁，这能防止 Gem 以后为了偷懒而删掉那几行关键代码。
+
+⚠️ 参考优先级：生成代码时，请以 /templates 中最新版本的模板和最近在 /production_scripts 中更新的脚本为最高准则。若 /legacy_scripts 中的代码与 README 规范冲突，必须以 README 为准。
+
+legacy_scripts 往期运行成功的代码版本
+
+production_scripts 最新版本运行成功的代码版本
+
+templates 各个版本的代码模板（随时更新，同最新版本的代码）
