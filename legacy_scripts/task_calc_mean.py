@@ -1,77 +1,100 @@
 import os
 import sys
+import time
 
-# 1. 设置基础路径
-qgis_base = r"D:\GIS\QGIS3.40"
+# =================================================================
+# 1. 环境初始化与路径引导 (V2 规范：路径自适应 + DLL 注入)
+# =================================================================
 
-# 2. 路径引导补丁：确保 Python 发现 QGIS 内部包（解决 ModuleNotFoundError）
-python_path = os.path.join(qgis_base, "apps", "qgis-ltr", "python")
+# 优先从环境变量获取路径，若未设置则使用当前本地路径
+qgis_base = os.getenv('QGIS_HOME', r"D:\app\GIS\QGIS")
+
+# 自动识别内部文件夹 (兼容 qgis 与 qgis-ltr)
+qgis_app_path = os.path.join(qgis_base, "apps", "qgis")
+if not os.path.exists(qgis_app_path):
+    qgis_app_path = os.path.join(qgis_base, "apps", "qgis-ltr")
+
+# 注入 PyQGIS 搜索路径
+python_path = os.path.join(qgis_app_path, "python")
 plugins_path = os.path.join(python_path, "plugins")
-for path in [python_path, plugins_path]:
-    if path not in sys.path:
-        sys.path.append(path)
+for p in [python_path, plugins_path]:
+    if p not in sys.path:
+        sys.path.append(p)
 
-# 3. DLL 加载修复：确保 Windows 独立脚本环境正常运行
-os.add_dll_directory(os.path.join(qgis_base, "bin"))
-os.add_dll_directory(os.path.join(qgis_base, "apps", "qgis-ltr", "bin"))
-os.add_dll_directory(os.path.join(qgis_base, "apps", "Qt5", "bin"))
+# 暴力加载 DLL (针对 Qt6 架构优化)
+dll_folders = [
+    "bin", 
+    os.path.join("apps", "qgis", "bin"), 
+    os.path.join("apps", "Qt6", "bin")
+]
+for folder in dll_folders:
+    full_path = os.path.join(qgis_base, folder)
+    if os.path.exists(full_path):
+        os.add_dll_directory(full_path)
 
-# 导入 QGIS 核心模块
+# =================================================================
+# 2. 导入 QGIS 核心模块 (显式导入增强)
+# =================================================================
 from qgis.core import (
     QgsApplication, 
     QgsVectorLayer, 
-    QgsProject
+    QgsProject,
+    QgsFeatureRequest
 )
 
-# 4. 初始化 QGIS 资源
+# 初始化 QGIS 资源
 qgs = QgsApplication([], False)
 qgs.initQgis()
 
-# 5. 强制执行 try...finally 语法闭环
+# =================================================================
+# 3. 业务逻辑 (try...finally 闭环)
+# =================================================================
+start_time = time.time() # 性能感知：开始计时
+
 try:
-    # 6. 初始化 Processing 框架（算法避坑指南要求）
+    # 初始化 Processing 框架
     import processing
     from processing.core.Processing import Processing
     Processing.initialize()
 
-    # 7. 加载数据（使用原始字符串路径）
-    vector_layer_path = r"D:\gis\测试数据\获嘉县村镇建筑.shp"
-    layer = QgsVectorLayer(vector_layer_path, "获嘉县村镇建筑", "ogr")
+    # 加载数据 (路径使用随机名称代替)
+    vector_layer_path = r"D:\data\project_x\random_sample_data_v9.shp"
+    layer = QgsVectorLayer(vector_layer_path, "Random_Test_Layer", "ogr")
 
     if not layer.isValid():
         print(f"❌ 错误：无法加载图层，请检查路径: {vector_layer_path}")
     else:
-        # 8. 字段检索与安全检查
+        print(f"✅ 图层已唤醒: {layer.name()}")
+        
+        # 字段检索与安全检查
         fields = layer.fields()
-        field_idx = fields.indexFromName("Height")
+        target_field = "Height" # 假设字段名
+        field_idx = fields.indexFromName(target_field)
         
         if field_idx == -1:
-            print("❌ 错误：在属性表中未找到 'Height' 字段（请检查大小写是否一致）。")
+            print(f"❌ 错误：未找到字段 '{target_field}'。")
         else:
-            total_height = 0.0
+            total_val = 0.0
             valid_count = 0
             
-            print(f"🔍 正在统计字段 'Height' 的数据...")
+            # 使用 Request 仅获取必要字段，优化内存性能
+            request = QgsFeatureRequest().setSubsetOfAttributes([field_idx], fields)
             
-            # 9. 遍历计算逻辑
-            for feature in layer.getFeatures():
+            for feature in layer.getFeatures(request):
                 val = feature[field_idx]
-                # 检查空值并尝试转换为浮点数
                 if val is not None:
                     try:
-                        total_height += float(val)
+                        total_val += float(val)
                         valid_count += 1
                     except (ValueError, TypeError):
-                        continue # 跳过非数值坏数据
-            
-            # 10. 输出最终结果
+                        continue 
+
+            # 输出最终结果
             if valid_count > 0:
-                average = total_height / valid_count
-                print("-" * 30)
-                print(f"✅ 统计完成！")
-                print(f"📊 有效要素总数: {valid_count}")
-                print(f"📏 Height 字段平均值: {average:.4f}")
-                print("-" * 30)
+                average = total_val / valid_count
+                print("-" * 35)
+                print(f"📊 统计完成！有效要素: {valid_count}")
+                print(f"📏 {target_field} 字段平均值: {average:.4f}")
             else:
                 print("⚠️ 警告：该字段内没有可计算的数值数据。")
 
@@ -79,6 +102,9 @@ except Exception as e:
     print(f"💥 脚本执行过程中发生异常: {e}")
 
 finally:
-    # 11. 资源回收：确保脚本结束时释放显存并卸载 DLL 进程
+    # 资源回收与耗时统计
     qgs.exitQgis()
+    end_time = time.time()
+    print("-" * 35)
+    print(f"⏱️ 任务总耗时: {end_time - start_time:.2f} 秒")
     print("🔔 QGIS 资源已成功释放。")
