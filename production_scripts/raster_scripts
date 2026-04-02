@@ -2,22 +2,39 @@ import os
 import sys
 import time  # 引入计时库
 
-# 1. 设置基础路径
-qgis_base = r"D:\GIS\QGIS3.40"
+# =================================================================
+# 1. 环境初始化 (V2 规范：路径自适应 + Qt6 适配)
+# =================================================================
 
-# 2. 路径引导补丁：解决 ModuleNotFoundError
-python_path = os.path.join(qgis_base, "apps", "qgis-ltr", "python")
+# 优先读取 .bat 启动器设置的环境变量，否则使用当前本地默认路径
+qgis_base = os.getenv('QGIS_HOME', r"D:\app\GIS\QGIS")
+
+# 自动识别内部文件夹名 (兼容 qgis 与 qgis-ltr)
+qgis_app_path = os.path.join(qgis_base, "apps", "qgis")
+if not os.path.exists(qgis_app_path):
+    qgis_app_path = os.path.join(qgis_base, "apps", "qgis-ltr")
+
+# 2. 路径引导补丁：确保 Python 发现 QGIS 内部包
+python_path = os.path.join(qgis_app_path, "python")
 plugins_path = os.path.join(python_path, "plugins")
 for path in [python_path, plugins_path]:
     if path not in sys.path:
         sys.path.append(path)
 
-# 3. DLL 加载修复：解决 Windows 环境下独立运行的加载错误
-os.add_dll_directory(os.path.join(qgis_base, "bin"))
-os.add_dll_directory(os.path.join(qgis_base, "apps", "qgis-ltr", "bin"))
-os.add_dll_directory(os.path.join(qgis_base, "apps", "Qt5", "bin"))
+# 3. DLL 加载修复：针对 Qt6 架构优化
+dll_folders = [
+    "bin", 
+    os.path.join("apps", "qgis", "bin"), 
+    os.path.join("apps", "Qt6", "bin")
+]
+for folder in dll_folders:
+    full_path = os.path.join(qgis_base, folder)
+    if os.path.exists(full_path):
+        os.add_dll_directory(full_path)
 
-# 4. 导入核心类（必须在 DLL 修复之后）
+# =================================================================
+# 4. 导入核心类 (必须在 DLL 修复之后)
+# =================================================================
 from qgis.core import QgsApplication, QgsVectorLayer, QgsRasterLayer
 import processing
 from processing.core.Processing import Processing
@@ -26,18 +43,20 @@ from processing.core.Processing import Processing
 qgs = QgsApplication([], False)
 qgs.initQgis()
 
+# =================================================================
 # 6. 强制语法闭环：确保资源始终能被释放
+# =================================================================
 try:
-    # 记录起始时间
+    # 记录起始时间 (高精度)
     start_time = time.perf_counter()
     
     # 必须在此处初始化算法框架
     Processing.initialize()
     
-    # 路径设定 (使用原始字符串)
-    mask_layer_path = r"D:\gis\测试数据\获嘉县zone.shp"
-    raster_layer_path = r"D:\gis\data\dem_250m\hdr.adf"
-    output_path = r"D:\gis\测试数据\clipped_dem.tif"
+    # 路径设定 (使用随机命名的脱敏路径)
+    mask_layer_path = r"D:\workspace\temp_data\random_zone_mask_v1.shp"
+    raster_layer_path = r"D:\workspace\source_data\random_dem_input_02.tif"
+    output_path = r"D:\workspace\output_results\clipped_result_random_99.tif"
 
     # --- 流程显示：任务开始 ---
     print(f"🔍 正在执行裁剪：使用 {os.path.basename(mask_layer_path)} 裁剪栅格...")
@@ -52,12 +71,15 @@ try:
             'INPUT': raster_layer,
             'MASK': mask_layer,
             'NODATA': None,  # 保持原数据 NoData 设定
+            'ALPHA_BAND': False,
             'CROP_TO_CUTLINE': True,
             'KEEP_RESOLUTION': True,
+            'OPTIONS': '',
+            'DATA_TYPE': 0,  # 0 为默认 (跟随原图)
             'OUTPUT': output_path
         }
         
-        # 调用 GDAL 裁剪算法
+        # 调用 GDAL 裁剪算法 (RTX 4060 会在此处加速计算)
         processing.run("gdal:cliprasterbymasklayer", params)
         
         # 计算总耗时
@@ -65,11 +87,11 @@ try:
         elapsed = end_time - start_time
         
         # --- 流程显示：结果反馈 ---
-        print("-" * 30)
-        print(f"✅ 裁剪完成！")
+        print("-" * 35)
+        print(f"✅ 裁剪任务圆满完成！")
         print(f"⏱️ 任务总耗时: {elapsed:.2f} 秒")
         print(f"💾 结果已保存至: {output_path}")
-        print("-" * 30)
+        print("-" * 35)
     else:
         print("❌ 错误：无法读取输入文件，请检查路径有效性。")
 
@@ -77,6 +99,6 @@ except Exception as e:
     print(f"💥 运行过程中发生错误: {e}")
 
 finally:
-    # 7. 退出 QGIS，释放 RTX 4060 显存与 DLL 进程
+    # 7. 退出 QGIS，彻底释放显存与进程
     qgs.exitQgis()
-    print("🔔 QGIS 资源已成功释放。")
+    print("🔔 QGIS 资源已成功安全回收。")
