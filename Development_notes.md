@@ -2,7 +2,7 @@
 
 ---
 
-# 🛠️ PyQGIS 3.40 + VS Code 环境构建与维护指南
+# 🛠️ PyQGIS 4.0 + VS Code 环境构建与维护指南
 
 ## 一、 核心构建思路：为什么需要 Shell 启动？
 PyQGIS 并不是一个简单的 Python 库，它高度依赖 QGIS 安装目录下的数百个 DLL 文件和特定版本的 Qt 框架。
