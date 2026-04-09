@@ -1,4 +1,4 @@
-# PyQGIS 3.40 自动化开发库 (RTX 4060 专用)
+# PyQGIS 4.0 自动化开发库 (RTX 4060 专用)
 
 本仓库是针对 Windows 环境下 **QGIS 3.40+** 独立脚本开发的标准化参考库。针对新版 QGIS 引入的 **Qt6** 架构进行了深度适配，确保无 DLL 冲突且资源回收机制完善。
 
@@ -16,7 +16,7 @@
 
 ### 核心软件环境
 * **操作系统**: Windows 11
-* **QGIS 版本**: 3.40.x (最新版/LTR)
+* **QGIS 版本**: 4.0 (最新版/LTR)
 * **核心路径**: `D:\app\GIS\QGIS` 
 * **Python 解释器**: QGIS 内置 Python 3.12.x (`D:\app\GIS\QGIS\bin\python3.exe`)
 * **图形框架**: **Qt 6.x** (适配新版 API)
